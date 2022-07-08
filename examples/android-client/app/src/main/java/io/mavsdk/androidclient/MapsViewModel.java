@@ -42,7 +42,7 @@ public class MapsViewModel extends ViewModel {
     if (latLngs != null) {
       List<Mission.MissionItem> missionItems = new ArrayList<>();
       for (LatLng latLng : latLngs) {
-        Mission.MissionItem missionItem = new Mission.MissionItem(
+        /*Mission.MissionItem missionItem = new Mission.MissionItem(
             latLng.getLatitude(),
             latLng.getLongitude(),
             MISSION_HEIGHT,
@@ -55,7 +55,7 @@ public class MapsViewModel extends ViewModel {
             1.0,
             Float.NaN,
             Float.NaN);
-        missionItems.add(missionItem);
+        missionItems.add(missionItem);*/
       }
 
       MissionPlan missionPlan = new MissionPlan(missionItems);
