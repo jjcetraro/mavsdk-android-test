@@ -3,6 +3,7 @@ package io.mavsdk.androidclient;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.Button;
@@ -27,6 +28,8 @@ import com.mapbox.mapboxsdk.plugins.annotation.Symbol;
 import com.mapbox.mapboxsdk.plugins.annotation.SymbolManager;
 import com.mapbox.mapboxsdk.plugins.annotation.SymbolOptions;
 import com.mapbox.mapboxsdk.utils.ColorUtils;
+
+import io.mavsdk.MavsdkEventQueue;
 import io.mavsdk.System;
 import io.mavsdk.mavsdkserver.MavsdkServer;
 import io.reactivex.disposables.Disposable;
@@ -247,13 +250,20 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
   private void onClickButtonRunStop(){
     if(mIsMavsdkServerRunning){
       // stop mavsdk server
-      for (Disposable disposable : disposables) {
-        disposable.dispose();
-      }
-      disposables.clear();
-      drone.dispose();
-      drone = null;
-      mavsdkServer.stop();
+      MavsdkEventQueue.executor().execute(() -> {
+        try{
+          for (Disposable disposable : disposables) {
+            disposable.dispose();
+          }
+          disposables.clear();
+          drone.dispose();
+          drone = null;
+          mavsdkServer.stop();
+          Log.d("MAVSDK-Server", "mavsdkServer.stop() executed");
+        }catch (Exception ex){
+          Log.d("MAVSDK-Server", "exception", ex);
+        }
+      });
 
       symbolManager.delete(currentPositionMarker);
       currentPositionMarker = null;
@@ -265,17 +275,19 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
       ((Button)findViewById(R.id.button_run_stop)).setText("RUN");
     }else{
       // run mavsdk server
-      int mavsdkServerPort = mavsdkServer.run();
-      drone = new System(BACKEND_IP_ADDRESS, mavsdkServerPort);
+      MavsdkEventQueue.executor().execute(() -> {
+        int mavsdkServerPort = mavsdkServer.run();
+        drone = new System(BACKEND_IP_ADDRESS, mavsdkServerPort);
 
-      disposables.add(drone.getTelemetry().getFlightMode().distinctUntilChanged()
-              .subscribe(flightMode -> logger.debug("flight mode: " + flightMode)));
-      disposables.add(drone.getTelemetry().getArmed().distinctUntilChanged()
-              .subscribe(armed -> logger.debug("armed: " + armed)));
-      disposables.add(drone.getTelemetry().getPosition().subscribe(position -> {
-        LatLng latLng = new LatLng(position.getLatitudeDeg(), position.getLongitudeDeg());
-        viewModel.currentPositionLiveData.postValue(latLng);
-      }));
+        disposables.add(drone.getTelemetry().getFlightMode().distinctUntilChanged()
+                .subscribe(flightMode -> logger.debug("flight mode: " + flightMode)));
+        disposables.add(drone.getTelemetry().getArmed().distinctUntilChanged()
+                .subscribe(armed -> logger.debug("armed: " + armed)));
+        disposables.add(drone.getTelemetry().getPosition().subscribe(position -> {
+          LatLng latLng = new LatLng(position.getLatitudeDeg(), position.getLongitudeDeg());
+          viewModel.currentPositionLiveData.postValue(latLng);
+        }));
+      });
 
       // change mIsMavsdkServerRunning value
       mIsMavsdkServerRunning = true;
