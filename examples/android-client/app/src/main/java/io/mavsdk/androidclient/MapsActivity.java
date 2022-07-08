@@ -5,6 +5,8 @@ import android.graphics.Color;
 import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.widget.Button;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
@@ -61,6 +63,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
   private Observer<LatLng> currentPositionObserver = this::updateVehiclePosition;
   private Observer<List<LatLng>> currentMissionPlanObserver = this::updateMarkers;
 
+  private boolean mIsMavsdkServerRunning = false;
+
   @Override
   public void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
@@ -74,6 +78,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     FloatingActionButton floatingActionButton = findViewById(R.id.fab);
     floatingActionButton.setOnClickListener(v -> viewModel.startMission(drone));
+
+    findViewById(R.id.button_run_stop).setOnClickListener(v -> onClickButtonRunStop());
   }
 
   @Override
@@ -88,18 +94,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     mapView.onResume();
     viewModel.currentPositionLiveData.observe(this, currentPositionObserver);
     viewModel.currentMissionPlanLiveData.observe(this, currentMissionPlanObserver);
-
-    int mavsdkServerPort = mavsdkServer.run();
-    drone = new System(BACKEND_IP_ADDRESS, mavsdkServerPort);
-
-    disposables.add(drone.getTelemetry().getFlightMode().distinctUntilChanged()
-        .subscribe(flightMode -> logger.debug("flight mode: " + flightMode)));
-    disposables.add(drone.getTelemetry().getArmed().distinctUntilChanged()
-        .subscribe(armed -> logger.debug("armed: " + armed)));
-    disposables.add(drone.getTelemetry().getPosition().subscribe(position -> {
-      LatLng latLng = new LatLng(position.getLatitudeDeg(), position.getLongitudeDeg());
-      viewModel.currentPositionLiveData.postValue(latLng);
-    }));
   }
 
   @Override
@@ -248,5 +242,46 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     });
 
     map = mapboxMap;
+  }
+
+  private void onClickButtonRunStop(){
+    if(mIsMavsdkServerRunning){
+      // stop mavsdk server
+      for (Disposable disposable : disposables) {
+        disposable.dispose();
+      }
+      disposables.clear();
+      drone.dispose();
+      drone = null;
+      mavsdkServer.stop();
+
+      symbolManager.delete(currentPositionMarker);
+      currentPositionMarker = null;
+
+      // change mIsMavsdkServerRunning value
+      mIsMavsdkServerRunning = false;
+
+      // change button text
+      ((Button)findViewById(R.id.button_run_stop)).setText("RUN");
+    }else{
+      // run mavsdk server
+      int mavsdkServerPort = mavsdkServer.run();
+      drone = new System(BACKEND_IP_ADDRESS, mavsdkServerPort);
+
+      disposables.add(drone.getTelemetry().getFlightMode().distinctUntilChanged()
+              .subscribe(flightMode -> logger.debug("flight mode: " + flightMode)));
+      disposables.add(drone.getTelemetry().getArmed().distinctUntilChanged()
+              .subscribe(armed -> logger.debug("armed: " + armed)));
+      disposables.add(drone.getTelemetry().getPosition().subscribe(position -> {
+        LatLng latLng = new LatLng(position.getLatitudeDeg(), position.getLongitudeDeg());
+        viewModel.currentPositionLiveData.postValue(latLng);
+      }));
+
+      // change mIsMavsdkServerRunning value
+      mIsMavsdkServerRunning = true;
+
+      // change button text
+      ((Button)findViewById(R.id.button_run_stop)).setText("STOP");
+    }
   }
 }
